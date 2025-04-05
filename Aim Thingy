@@ -1,17 +1,23 @@
 -- AIM System (External Script)
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local Camera = workspace.CurrentCamera
+local player = Players.LocalPlayer
+
 local Aim = {
     Enabled = false,
     TeamCheck = true,
     VisibilityCheck = true,
-    AimPart = 'Head',
+    AimPart = "Head",
     FOV = 80,
     ShowFOV = true,
-    CurrentKey = 'None',
+    CurrentKey = "None",
     AimKey = nil,
+    KeybindListening = false,
 }
 
--- FOV Circle
-local FOVCircle = Drawing.new('Circle')
+local FOVCircle = Drawing.new("Circle")
 FOVCircle.Visible = false
 FOVCircle.Radius = Aim.FOV
 FOVCircle.Color = Color3.fromRGB(255, 255, 255)
@@ -70,7 +76,7 @@ local function GetClosestPlayer()
     return closestPlayer
 end
 
--- Aim Loop
+-- AIM Loop
 RunService.RenderStepped:Connect(function()
     FOVCircle.Position = UserInputService:GetMouseLocation()
     FOVCircle.Radius = Aim.FOV
@@ -102,9 +108,29 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
+-- Initialize AIM Tab UI
+local function InitializeAimTab(aimContainer, featureStates, TweenService)
+    -- Aimbot Toggle
+    local aimToggle, aimKeybind = createToggle(
+        aimContainer,
+        "Aimbot",
+        Aim.Enabled,
+        function(state)
+            Aim.Enabled = state
+            if toggleComponents["Aimbot"] and toggleComponents["Aimbot"].slider then
+                local slider = toggleComponents["Aimbot"].slider
+                local newPosition = state and UDim2.new(1, -25, 0, 1) or UDim2.new(0, 2, 0, 1)
+                slider.Position = newPosition
+                slider.BackgroundColor3 = state and Color3.fromRGB(255, 165, 0) or Color3.new(1, 1, 1)
+            end
+        end,
+        true,
+        "Aimbot"
+    )
+
     -- Aimbot Keybind
     aimKeybind.MouseButton1Click:Connect(function()
-        aimKeybind.Text = '...'
+        aimKeybind.Text = "..."
         local connection
         connection = UserInputService.InputBegan:Connect(function(input)
             if input.UserInputType == Enum.UserInputType.Keyboard then
@@ -113,74 +139,55 @@ end)
                 aimKeybind.Text = input.KeyCode.Name
                 connection:Disconnect()
             elseif input.UserInputType == Enum.UserInputType.MouseButton1 then
-                Aim.CurrentKey = 'MB1'
+                Aim.CurrentKey = "MB1"
                 Aim.AimKey = input.UserInputType
-                aimKeybind.Text = 'MB1'
+                aimKeybind.Text = "MB1"
                 connection:Disconnect()
             elseif input.UserInputType == Enum.UserInputType.MouseButton2 then
-                Aim.CurrentKey = 'MB2'
+                Aim.CurrentKey = "MB2"
                 Aim.AimKey = input.UserInputType
-                aimKeybind.Text = 'MB2'
+                aimKeybind.Text = "MB2"
                 connection:Disconnect()
             elseif input.UserInputType == Enum.UserInputType.MouseButton3 then
-                Aim.CurrentKey = 'MB3'
+                Aim.CurrentKey = "MB3"
                 Aim.AimKey = input.UserInputType
-                aimKeybind.Text = 'MB3'
+                aimKeybind.Text = "MB3"
                 connection:Disconnect()
             end
         end)
     end)
     aimKeybind.Text = Aim.CurrentKey
 
-    -- Aim Tab
-    local aimContainer = contentSections.Aim.Container
-
-    -- Aimbot Toggle
-    local aimToggle, aimKeybind = createToggle(
-        aimContainer,
-        'Aimbot',
-        Aim.Enabled,
-        function(state)
-            Aim.Enabled = state
-            if
-                toggleComponents['Aimbot'] and toggleComponents['Aimbot'].slider
-            then
-                local slider = toggleComponents['Aimbot'].slider
-                local newPosition = state and UDim2.new(1, -25, 0, 1)
-                    or UDim2.new(0, 2, 0, 1)
-                slider.Position = newPosition
-                slider.BackgroundColor3 = state and Color3.fromRGB(255, 165, 0)
-                    or Color3.new(1, 1, 1)
-            end
-        end,
-        true,
-        'Aimbot'
-    )
-
-
-    -- Team Check
-    createToggle(aimContainer, 'Team Check', featureStates.TeamCheck, function(state)
-        featureStates.TeamCheck = state
-        Aim.TeamCheck = state
-    end, false, 'TeamCheck')
-
-    -- Visibility Check
+    -- Team Check Toggle
     createToggle(
         aimContainer,
-        'Visibility Check',
+        "Team Check",
+        featureStates.TeamCheck,
+        function(state)
+            featureStates.TeamCheck = state
+            Aim.TeamCheck = state
+        end,
+        false,
+        "TeamCheck"
+    )
+
+    -- Visibility Check Toggle
+    createToggle(
+        aimContainer,
+        "Visibility Check",
         featureStates.VisibilityCheck,
         function(state)
             featureStates.VisibilityCheck = state
             Aim.VisibilityCheck = state
         end,
         false,
-        'VisibilityCheck'
+        "VisibilityCheck"
     )
 
     -- Show FOV Toggle
     createToggle(
         aimContainer,
-        'Show FOV',
+        "Show FOV",
         featureStates.ShowFOV,
         function(state)
             featureStates.ShowFOV = state
@@ -188,83 +195,13 @@ end)
             FOVCircle.Visible = state
         end,
         false,
-        'ShowFOV'
+        "ShowFOV"
     )
 
-    -- Aim Part Selection
-    local partFrame = Instance.new('Frame')
-    partFrame.Size = UDim2.new(1, -20, 0, 40)
-    partFrame.BackgroundTransparency = 1
-    partFrame.Parent = aimContainer
-
-    local headButton = Instance.new('TextButton')
-    headButton.Size = UDim2.new(0.45, -5, 0, 30)
-    headButton.Position = UDim2.new(0.025, 0, 0, 5)
-    headButton.Text = 'Head'
-    headButton.TextSize = 14
-    headButton.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
-    headButton.TextColor3 = Color3.new(1, 1, 1)
-    headButton.Font = Enum.Font.Gotham
-    headButton.Parent = partFrame
-
-    local headHighlight = Instance.new('Frame')
-    headHighlight.Name = 'Highlight'
-    headHighlight.Size = UDim2.new(0, 5, 1, 0)
-    headHighlight.Position = UDim2.new(1, -165, 0, 0)
-    headHighlight.AnchorPoint = Vector2.new(1, 0)
-    headHighlight.BackgroundColor3 = Aim.AimPart == 'Head'
-            and Color3.fromRGB(255, 165, 0)
-        or Color3.fromRGB(60, 60, 60)
-    headHighlight.BorderSizePixel = 0
-    headHighlight.ZIndex = 2
-    headHighlight.Parent = headButton
-
-    local torsoButton = Instance.new('TextButton')
-    torsoButton.Size = UDim2.new(0.45, -5, 0, 30)
-    torsoButton.Position = UDim2.new(0.525, 0, 0, 5)
-    torsoButton.Text = 'Torso'
-    torsoButton.TextSize = 14
-    torsoButton.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
-    torsoButton.TextColor3 = Color3.new(1, 1, 1)
-    torsoButton.Font = Enum.Font.Gotham
-    torsoButton.Parent = partFrame
-
-    local torsoHighlight = Instance.new('Frame')
-    torsoHighlight.Name = 'Highlight'
-    torsoHighlight.Size = UDim2.new(0, 5, 1, 0)
-    torsoHighlight.Position = UDim2.new(1, -165, 0, 0)
-    torsoHighlight.AnchorPoint = Vector2.new(1, 0)
-    torsoHighlight.BackgroundColor3 = Aim.AimPart == 'Torso'
-            and Color3.fromRGB(255, 165, 0)
-        or Color3.fromRGB(60, 60, 60)
-    torsoHighlight.BorderSizePixel = 0
-    torsoHighlight.ZIndex = 2
-    torsoHighlight.Parent = torsoButton
-
-    local buttonCorner = Instance.new('UICorner')
-    buttonCorner.CornerRadius = UDim.new(0, 4)
-    buttonCorner.Parent = headButton
-
-    local buttonCorner2 = Instance.new('UICorner')
-    buttonCorner2.CornerRadius = UDim.new(0, 4)
-    buttonCorner2.Parent = torsoButton
-
-    headButton.MouseButton1Click:Connect(function()
-        Aim.AimPart = 'Head'
-        headHighlight.BackgroundColor3 = Color3.fromRGB(255, 165, 0)
-        torsoHighlight.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
-    end)
-
-    torsoButton.MouseButton1Click:Connect(function()
-        Aim.AimPart = 'Torso'
-        torsoHighlight.BackgroundColor3 = Color3.fromRGB(255, 165, 0)
-        headHighlight.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
-    end)
-
-    -- FOV Controls
+    -- FOV Slider
     createSlider(
         aimContainer,
-        'FOV Radius',
+        "FOV Radius",
         10,
         500,
         Aim.FOV,
@@ -273,7 +210,7 @@ end)
             FOVCircle.Radius = value
         end
     )
-
+end
 
 return {
     Aim = Aim,
