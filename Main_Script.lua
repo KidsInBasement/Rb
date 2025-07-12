@@ -75,7 +75,7 @@ local HttpService = game:GetService('HttpService')
 
 -- AIM Script (External)
 local aimModule
-local AIM_SCRIPT_URL = "https://raw.githubusercontent.com/KidsInBasement/Rb/refs/heads/main/aim_script.lua" -- <--- REPLACE THIS
+local AIM_SCRIPT_URL = https://raw.githubusercontent.com/KidsInBasement/Rb/refs/heads/main/aim_script.lua -- <--- REPLACE THIS
 pcall(function()
     local aimCode = HttpService:HttpGet(AIM_SCRIPT_URL, true)
     if aimCode then
@@ -94,7 +94,7 @@ end)
 
 -- Advanced ESP Script (External)
 local advancedEspModule
-local ADVANCED_ESP_SCRIPT_URL = "https://raw.githubusercontent.com/KidsInBasement/Rb/refs/heads/main/advanced_esp_script.lua" -- <--- REPLACE THIS
+local ADVANCED_ESP_SCRIPT_URL = https://raw.githubusercontent.com/KidsInBasement/Rb/refs/heads/main/advanced_esp_script.lua -- <--- REPLACE THIS
 pcall(function()
     local advancedEspCode = HttpService:HttpGet(ADVANCED_ESP_SCRIPT_URL, true)
     if advancedEspCode then
