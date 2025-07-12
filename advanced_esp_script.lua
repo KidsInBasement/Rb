@@ -3,15 +3,19 @@ local Players = game:GetService('Players')
 local RunService = game:GetService('RunService')
 local Camera = workspace.CurrentCamera
 
--- ESP Settings (these should ideally be configurable from main GUI)
+-- Local variables that need to be set by the main script
+local featureStates = {}
+local LocalPlayer = nil
+
+-- ESP Settings (These will be the ones directly manipulated by GUI)
 local ESP = {
-    Enabled = false, -- Main ESP toggle state
+    Enabled = false, -- This will be controlled by main script's featureStates.AdvancedESP
     TeamCheck = true,
     Boxes = true,
     BoxShift = CFrame.new(0, 0, 0),
     BoxSize = Vector3.new(4, 6, 0),
     Color = Color3.fromRGB(255, 165, 0),
-    FaceCamera = false,
+    FaceCamera = false, -- Unused in current logic, but kept for config
     Names = true,
     Health = true,
     HealthTextSize = 19,
@@ -38,7 +42,6 @@ local ESP = {
 }
 
 local ESPObjects = {}
-local featureStates = {} -- This will be populated from the main script or passed
 
 local function CreateESP(playerToESP)
     if ESPObjects[playerToESP] then
@@ -56,7 +59,12 @@ local function CreateESP(playerToESP)
             not playerToESP.Character
             or not playerToESP.Character:FindFirstChild('Humanoid')
             or not playerToESP.Character:FindFirstChild('HumanoidRootPart')
+            or not featureStates.AdvancedESP -- Check main toggle state
         then
+            -- Hide all ESP elements if player is not visible or AdvancedESP is off
+            for _, drawing in pairs(ESPObject.Drawings) do
+                drawing.Visible = false
+            end
             return
         end
 
@@ -70,16 +78,9 @@ local function CreateESP(playerToESP)
 
         local isVisible = RootVis
         if not isVisible then
-            if ESPObject.Drawings.Box then ESPObject.Drawings.Box.Visible = false end
-            if ESPObject.Drawings.BoxOutline then ESPObject.Drawings.BoxOutline.Visible = false end
-            if ESPObject.Drawings.BoxFill then ESPObject.Drawings.BoxFill.Visible = false end
-            if ESPObject.Drawings.Name then ESPObject.Drawings.Name.Visible = false end
-            if ESPObject.Drawings.NameOutline then ESPObject.Drawings.NameOutline.Visible = false end
-            if ESPObject.Drawings.Health then ESPObject.Drawings.Health.Visible = false end
-            if ESPObject.Drawings.HealthOutline then ESPObject.Drawings.HealthOutline.Visible = false end
-            if ESPObject.Drawings.Distance then ESPObject.Drawings.Distance.Visible = false end
-            if ESPObject.Drawings.DistanceOutline then ESPObject.Drawings.DistanceOutline.Visible = false end
-            if ESPObject.Drawings.Tracer then ESPObject.Drawings.Tracer.Visible = false end
+            for _, drawing in pairs(ESPObject.Drawings) do
+                drawing.Visible = false
+            end
             return
         end
 
@@ -112,7 +113,7 @@ local function CreateESP(playerToESP)
 
             ESPObject.Drawings.Box.Size = Size
             ESPObject.Drawings.Box.Position = Position
-            ESPObject.Drawings.Box.Visible = featureStates.ESPBoxes and isVisible
+            ESPObject.Drawings.Box.Visible = true
 
             -- Box outline
             if ESP.Outlines and featureStates.ESPOutlines then
@@ -128,7 +129,7 @@ local function CreateESP(playerToESP)
                     + Vector2.new(ESP.OutlineSize * 2, ESP.OutlineSize * 2)
                 ESPObject.Drawings.BoxOutline.Position = Position
                     - Vector2.new(ESP.OutlineSize, ESP.OutlineSize)
-                ESPObject.Drawings.BoxOutline.Visible = featureStates.ESPOutlines and featureStates.ESPBoxes and isVisible
+                ESPObject.Drawings.BoxOutline.Visible = true
             else
                 if ESPObject.Drawings.BoxOutline then
                     ESPObject.Drawings.BoxOutline.Visible = false
@@ -148,22 +149,16 @@ local function CreateESP(playerToESP)
                 ESPObject.Drawings.BoxFill.Size = Size
                 ESPObject.Drawings.BoxFill.Position = Position
                 ESPObject.Drawings.BoxFill.Transparency = ESP.FillTransparency
-                ESPObject.Drawings.BoxFill.Visible = featureStates.ESPBoxes and isVisible
+                ESPObject.Drawings.BoxFill.Visible = true
             else
                 if ESPObject.Drawings.BoxFill then
                     ESPObject.Drawings.BoxFill.Visible = false
                 end
             end
         else
-            if ESPObject.Drawings.Box then
-                ESPObject.Drawings.Box.Visible = false
-            end
-            if ESPObject.Drawings.BoxOutline then
-                ESPObject.Drawings.BoxOutline.Visible = false
-            end
-            if ESPObject.Drawings.BoxFill then
-                ESPObject.Drawings.BoxFill.Visible = false
-            end
+            if ESPObject.Drawings.Box then ESPObject.Drawings.Box.Visible = false end
+            if ESPObject.Drawings.BoxOutline then ESPObject.Drawings.BoxOutline.Visible = false end
+            if ESPObject.Drawings.BoxFill then ESPObject.Drawings.BoxFill.Visible = false end
         end
 
         -- Name
@@ -183,7 +178,7 @@ local function CreateESP(playerToESP)
             )
             ESPObject.Drawings.Name.Text = playerToESP.Name
             ESPObject.Drawings.Name.Position = NamePosition
-            ESPObject.Drawings.Name.Visible = featureStates.ESPNames and isVisible
+            ESPObject.Drawings.Name.Visible = true
 
             -- Name outline
             if ESP.TextOutline then
@@ -199,19 +194,15 @@ local function CreateESP(playerToESP)
                 ESPObject.Drawings.NameOutline.Text = playerToESP.Name
                 ESPObject.Drawings.NameOutline.Position = NamePosition
                     + Vector2.new(1, 1)
-                ESPObject.Drawings.NameOutline.Visible = featureStates.ESPNames and isVisible
+                ESPObject.Drawings.NameOutline.Visible = true
             else
                 if ESPObject.Drawings.NameOutline then
                     ESPObject.Drawings.NameOutline.Visible = false
                 end
             end
         else
-            if ESPObject.Drawings.Name then
-                ESPObject.Drawings.Name.Visible = false
-            end
-            if ESPObject.Drawings.NameOutline then
-                ESPObject.Drawings.NameOutline.Visible = false
-            end
+            if ESPObject.Drawings.Name then ESPObject.Drawings.Name.Visible = false end
+            if ESPObject.Drawings.NameOutline then ESPObject.Drawings.NameOutline.Visible = false end
         end
 
         -- Health
@@ -233,7 +224,7 @@ local function CreateESP(playerToESP)
                 math.floor(Humanoid.Health)
             ) .. '/' .. tostring(math.floor(Humanoid.MaxHealth))
             ESPObject.Drawings.Health.Position = HealthPosition
-            ESPObject.Drawings.Health.Visible = featureStates.ESPHealth and isVisible
+            ESPObject.Drawings.Health.Visible = true
 
             -- Health outline
             if ESP.TextOutline then
@@ -250,19 +241,15 @@ local function CreateESP(playerToESP)
                     ESPObject.Drawings.Health.Text
                 ESPObject.Drawings.HealthOutline.Position = HealthPosition
                     + Vector2.new(1, 1)
-                ESPObject.Drawings.HealthOutline.Visible = featureStates.ESPHealth and isVisible
+                ESPObject.Drawings.HealthOutline.Visible = true
             else
                 if ESPObject.Drawings.HealthOutline then
                     ESPObject.Drawings.HealthOutline.Visible = false
                 end
             end
         else
-            if ESPObject.Drawings.Health then
-                ESPObject.Drawings.Health.Visible = false
-            end
-            if ESPObject.Drawings.HealthOutline then
-                ESPObject.Drawings.HealthOutline.Visible = false
-            end
+            if ESPObject.Drawings.Health then ESPObject.Drawings.Health.Visible = false end
+            if ESPObject.Drawings.HealthOutline then ESPObject.Drawings.HealthOutline.Visible = false end
         end
 
         -- Distance
@@ -285,7 +272,7 @@ local function CreateESP(playerToESP)
             )
             ESPObject.Drawings.Distance.Text = tostring(Distance) .. 'm'
             ESPObject.Drawings.Distance.Position = DistancePosition
-            ESPObject.Drawings.Distance.Visible = featureStates.ESPDistance and isVisible
+            ESPObject.Drawings.Distance.Visible = true
 
             -- Distance outline
             if ESP.TextOutline then
@@ -303,19 +290,15 @@ local function CreateESP(playerToESP)
                     ESPObject.Drawings.Distance.Text
                 ESPObject.Drawings.DistanceOutline.Position = DistancePosition
                     + Vector2.new(1, 1)
-                ESPObject.Drawings.DistanceOutline.Visible = featureStates.ESPDistance and isVisible
+                ESPObject.Drawings.DistanceOutline.Visible = true
             else
                 if ESPObject.Drawings.DistanceOutline then
                     ESPObject.Drawings.DistanceOutline.Visible = false
                 end
             end
         else
-            if ESPObject.Drawings.Distance then
-                ESPObject.Drawings.Distance.Visible = false
-            end
-            if ESPObject.Drawings.DistanceOutline then
-                ESPObject.Drawings.DistanceOutline.Visible = false
-            end
+            if ESPObject.Drawings.Distance then ESPObject.Drawings.Distance.Visible = false end
+            if ESPObject.Drawings.DistanceOutline then ESPObject.Drawings.DistanceOutline.Visible = false end
         end
 
         -- Tracer
@@ -330,7 +313,7 @@ local function CreateESP(playerToESP)
 
             ESPObject.Drawings.Tracer.From = ESP.TracerFrom
             ESPObject.Drawings.Tracer.To = Vector2.new(RootPos.X, RootPos.Y)
-            ESPObject.Drawings.Tracer.Visible = featureStates.ESPTracers and isVisible
+            ESPObject.Drawings.Tracer.Visible = true
         else
             if ESPObject.Drawings.Tracer then
                 ESPObject.Drawings.Tracer.Visible = false
@@ -339,13 +322,13 @@ local function CreateESP(playerToESP)
     end
 
     local function ClearESP()
-        for _, DrawingObject in pairs(ESPObject.Drawings) do
+        for _, DrawingObject in pairs(ESPObjects[playerToESP].Drawings) do
             if DrawingObject and DrawingObject.Remove then
                 DrawingObject.Visible = false
                 DrawingObject:Remove()
             end
         end
-        ESPObject.Drawings = {}
+        ESPObjects[playerToESP].Drawings = {}
     end
 
     local function CharacterAdded(Character)
@@ -369,9 +352,13 @@ local function CreateESP(playerToESP)
                 end
             )
 
-        ESPObject.Connections.RenderStepped = RunService.RenderStepped:Connect(
-            UpdateESP
-        )
+        -- Important: Start the RenderStepped connection only if AdvancedESP is enabled
+        -- The main ESPUpdater will handle continuous updates
+        if featureStates.AdvancedESP then
+            ESPObject.Connections.RenderStepped = RunService.RenderStepped:Connect(
+                UpdateESP
+            )
+        end
     end
 
     if playerToESP.Character then
@@ -403,10 +390,10 @@ local function RemoveESP(playerToESP)
     ESPObjects[playerToESP] = nil
 end
 
-local function UpdateAllESP()
-    local localPlayer = Players.LocalPlayer -- Assuming LocalPlayer is accessible or passed
+local function UpdateAllESP(player_local)
+    LocalPlayer = player_local -- Ensure LocalPlayer is set for team check
     for _, Player in pairs(Players:GetPlayers()) do
-        if Player ~= localPlayer and (not ESP.TeamCheck or Player.Team ~= localPlayer.Team) then
+        if Player ~= LocalPlayer and (not ESP.TeamCheck or Player.Team ~= LocalPlayer.Team) then
             if featureStates.AdvancedESP then
                 RemoveESP(Player)
                 CreateESP(Player)
@@ -417,11 +404,30 @@ local function UpdateAllESP()
     end
 end
 
--- ESP Updater loop
+local function ToggleAdvancedESP(state, player_local)
+    featureStates.AdvancedESP = state
+    LocalPlayer = player_local -- Ensure LocalPlayer is set
+    if state then
+        for _, p in ipairs(Players:GetPlayers()) do
+            if p ~= LocalPlayer and p.Character then
+                CreateESP(p)
+            end
+        end
+    else
+        for p in pairs(ESPObjects) do
+            RemoveESP(p)
+        end
+    end
+end
+
+-- This updater loop will ensure drawing properties are always synced
 local ESPUpdater = RunService.Heartbeat:Connect(function()
     if featureStates.AdvancedESP then
-        for player, espObject in pairs(ESPObjects) do
-            if player and player.Character then
+        for playerToESP, espObject in pairs(ESPObjects) do
+            if playerToESP and playerToESP.Character and espObject and espObject.UpdateESP then
+                -- This will update visibility and position
+                espObject.UpdateESP()
+                -- Update drawing properties (colors, sizes etc.)
                 if espObject.Drawings.Box then
                     espObject.Drawings.Box.Color = ESP.Color
                 end
@@ -461,36 +467,29 @@ local ESPUpdater = RunService.Heartbeat:Connect(function()
                     espObject.Drawings.Tracer.Color = ESP.TracerColor
                     espObject.Drawings.Tracer.Thickness = ESP.TracerThickness
                 end
-                -- Call UpdateESP for positioning and visibility
-                espObject.UpdateESP()
             end
         end
     end
 end)
 
-local function ToggleAdvancedESP(state)
-    featureStates.AdvancedESP = state
-    if state then
-        local localPlayer = Players.LocalPlayer
-        for _, p in ipairs(Players:GetPlayers()) do
-            if p ~= localPlayer and p.Character then
-                CreateESP(p)
-            end
-        end
-    else
-        for p in pairs(ESPObjects) do
-            RemoveESP(p)
-        end
-    end
+-- Function to set feature states from main script
+local function SetFeatureStatesRef(statesTable)
+    featureStates = statesTable
+end
+
+-- Function to set LocalPlayer from main script
+local function SetLocalPlayerRef(playerRef)
+    LocalPlayer = playerRef
 end
 
 -- Return functions and tables to be accessed by the main script
 return {
-    ESP = ESP,
+    ESPConfig = ESP, -- Renamed to avoid direct conflict with 'ESP' variable in main script
     ESPObjects = ESPObjects,
     CreateESP = CreateESP,
     RemoveESP = RemoveESP,
     UpdateAllESP = UpdateAllESP,
     ToggleAdvancedESP = ToggleAdvancedESP,
-    SetFeatureStates = function(states) featureStates = states end -- Allow main script to set featureStates
+    SetFeatureStates = SetFeatureStatesRef,
+    SetLocalPlayer = SetLocalPlayerRef
 }
