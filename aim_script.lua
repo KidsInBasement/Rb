@@ -3,16 +3,17 @@ local Players = game:GetService('Players')
 local UserInputService = game:GetService('UserInputService')
 local RunService = game:GetService('RunService')
 local Camera = workspace.CurrentCamera
+local LocalPlayer = Players.LocalPlayer -- Reference LocalPlayer here
 
--- Aim System Configuration
+-- Aim System Configuration (These will be the ones directly manipulated by GUI)
 local Aim = {
     Enabled = false,
     Active = false,
-    TeamCheck = true, -- This will be passed from the main script or configured here
-    VisibilityCheck = true, -- This will be passed from the main script or configured here
+    TeamCheck = true,
+    VisibilityCheck = true,
     AimPart = 'Head',
     FOV = 80,
-    ShowFOV = true, -- This will be passed from the main script or configured here
+    ShowFOV = true,
     CurrentKey = 'None',
     AimKey = nil,
     KeybindListening = false,
@@ -32,12 +33,11 @@ FOVCircle.NumSides = 64
 local function GetClosestPlayer()
     local closestPlayer = nil
     local shortestDistance = Aim.FOV
-    local player = Players.LocalPlayer -- Assuming LocalPlayer is accessible or passed
-
+    
     for _, v in pairs(Players:GetPlayers()) do
-        if v ~= player and v.Character and v.Character:FindFirstChild("HumanoidRootPart") then
+        if v ~= LocalPlayer and v.Character and v.Character:FindFirstChild("HumanoidRootPart") then
             -- Team check
-            if Aim.TeamCheck and v.Team and player.Team and v.Team == player.Team then 
+            if Aim.TeamCheck and v.Team and LocalPlayer.Team and v.Team == LocalPlayer.Team then 
                 continue 
             end
             
@@ -53,22 +53,19 @@ local function GetClosestPlayer()
                 if distance < shortestDistance then
                     -- Visibility check
                     if Aim.VisibilityCheck then
-                        -- Cast a ray from camera to target
                         local raycastParams = RaycastParams.new()
-                        raycastParams.FilterDescendantsInstances = {player.Character, v.Character}
+                        raycastParams.FilterDescendantsInstances = {LocalPlayer.Character, v.Character}
                         raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
                         
                         local rayOrigin = Camera.CFrame.Position
                         local rayDirection = (targetPart.Position - rayOrigin).Unit * (rayOrigin - targetPart.Position).Magnitude
                         local raycastResult = workspace:Raycast(rayOrigin, rayDirection, raycastParams)
                         
-                        -- If ray hits nothing or hits the target player, then visible
                         if not raycastResult or raycastResult.Instance:IsDescendantOf(v.Character) then
                             closestPlayer = v
                             shortestDistance = distance
                         end
                     else
-                        -- No visibility check needed
                         closestPlayer = v
                         shortestDistance = distance
                     end
@@ -79,15 +76,14 @@ local function GetClosestPlayer()
     return closestPlayer
 end
 
--- Aim Loop
+-- Aim Loop - This will now be controlled directly by the 'Aim' table's 'Enabled' property
 RunService.RenderStepped:Connect(function()
     FOVCircle.Position = UserInputService:GetMouseLocation()
     FOVCircle.Radius = Aim.FOV
-    FOVCircle.Visible = Aim.ShowFOV and Aim.Enabled
+    FOVCircle.Visible = Aim.ShowFOV and Aim.Enabled -- Visibility depends on both ShowFOV and overall Aim.Enabled
     
     local keyPressed = false
     if Aim.AimKey then
-        -- Handle mouse buttons first
         if Aim.CurrentKey == "MB1" then
             keyPressed = UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1)
         elseif Aim.CurrentKey == "MB2" then
@@ -95,7 +91,6 @@ RunService.RenderStepped:Connect(function()
         elseif Aim.CurrentKey == "MB3" then
             keyPressed = UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton3)
         else
-            -- Handle keyboard keys
             keyPressed = UserInputService:IsKeyDown(Aim.AimKey)
         end
     end
@@ -113,6 +108,6 @@ end)
 
 -- Return the Aim table and FOVCircle for external control
 return {
-    Aim = Aim,
+    AimConfig = Aim, -- Renamed to avoid direct conflict with 'Aim' variable in main script
     FOVCircle = FOVCircle
 }
