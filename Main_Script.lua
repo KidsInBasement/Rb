@@ -1,3 +1,395 @@
+-- Advanced ESP Functions
+local ESPObjects = {}
+local function CreateESP(player)
+    if ESPObjects[player] then
+        return
+    end
+
+    local ESPObject = {
+        Player = player,
+        Drawings = {},
+        Connections = {},
+    }
+
+local function UpdateESP()
+    if
+        not player.Character
+        or not player.Character:FindFirstChild('Humanoid')
+        or not player.Character:FindFirstChild('HumanoidRootPart')
+    then
+        return
+    end
+
+    local RootPart = player.Character.HumanoidRootPart
+    local Head = player.Character:FindFirstChild('Head')
+    local Humanoid = player.Character.Humanoid
+
+    -- Calculate positions and visibility
+    local RootPos, RootVis = Camera:WorldToViewportPoint(RootPart.Position)
+    local HeadPos = Head and Camera:WorldToViewportPoint(Head.Position)
+        or RootPos
+
+    -- Only show ESP if player is visible on screen
+    local isVisible = RootVis
+    if not isVisible then
+        -- Hide all ESP elements if player is not visible
+        if ESPObject.Drawings.Box then ESPObject.Drawings.Box.Visible = false end
+        if ESPObject.Drawings.BoxOutline then ESPObject.Drawings.BoxOutline.Visible = false end
+        if ESPObject.Drawings.BoxFill then ESPObject.Drawings.BoxFill.Visible = false end
+        if ESPObject.Drawings.Name then ESPObject.Drawings.Name.Visible = false end
+        if ESPObject.Drawings.NameOutline then ESPObject.Drawings.NameOutline.Visible = false end
+        if ESPObject.Drawings.Health then ESPObject.Drawings.Health.Visible = false end
+        if ESPObject.Drawings.HealthOutline then ESPObject.Drawings.HealthOutline.Visible = false end
+        if ESPObject.Drawings.Distance then ESPObject.Drawings.Distance.Visible = false end
+        if ESPObject.Drawings.DistanceOutline then ESPObject.Drawings.DistanceOutline.Visible = false end
+        if ESPObject.Drawings.Tracer then ESPObject.Drawings.Tracer.Visible = false end
+        return
+    end
+
+    -- Box
+    if ESP.Boxes and featureStates.ESPBoxes then
+        -- Get camera vectors for proper facing
+        local cameraCFrame = Camera.CFrame
+        local rightVector = cameraCFrame.RightVector
+        local upVector = cameraCFrame.UpVector
+        
+        -- Calculate box corners facing the camera (using fixed size)
+        local centerPos = (RootPart.CFrame * ESP.BoxShift).Position
+        local topRight = Camera:WorldToViewportPoint(centerPos + (rightVector * ESP.BoxSize.X/2) + (upVector * ESP.BoxSize.Y/2))
+        local bottomLeft = Camera:WorldToViewportPoint(centerPos - (rightVector * ESP.BoxSize.X/2) - (upVector * ESP.BoxSize.Y/2))
+        
+        local Size = Vector2.new(
+            math.abs(topRight.X - bottomLeft.X),
+            math.abs(topRight.Y - bottomLeft.Y)
+        )
+        local Position = Vector2.new(
+            math.min(topRight.X, bottomLeft.X),
+            math.min(topRight.Y, bottomLeft.Y)
+        )
+
+        if not ESPObject.Drawings.Box then
+            ESPObject.Drawings.Box = Drawing.new('Square')
+            ESPObject.Drawings.Box.Visible = false
+            ESPObject.Drawings.Box.Color = ESP.Color
+            ESPObject.Drawings.Box.Thickness = 1
+            ESPObject.Drawings.Box.Filled = false
+        end
+
+        ESPObject.Drawings.Box.Size = Size
+        ESPObject.Drawings.Box.Position = Position
+        ESPObject.Drawings.Box.Visible = featureStates.ESPBoxes and isVisible
+
+        -- Box outline
+        if ESP.Outlines and featureStates.ESPOutlines then
+            if not ESPObject.Drawings.BoxOutline then
+                ESPObject.Drawings.BoxOutline = Drawing.new('Square')
+                ESPObject.Drawings.BoxOutline.Visible = false
+                ESPObject.Drawings.BoxOutline.Color = ESP.OutlineColor
+                ESPObject.Drawings.BoxOutline.Thickness = ESP.OutlineSize
+                ESPObject.Drawings.BoxOutline.Filled = false
+            end
+
+            ESPObject.Drawings.BoxOutline.Size = Size
+                + Vector2.new(ESP.OutlineSize * 2, ESP.OutlineSize * 2)
+            ESPObject.Drawings.BoxOutline.Position = Position
+                - Vector2.new(ESP.OutlineSize, ESP.OutlineSize)
+            ESPObject.Drawings.BoxOutline.Visible = featureStates.ESPOutlines and featureStates.ESPBoxes and isVisible
+        else
+            if ESPObject.Drawings.BoxOutline then
+                ESPObject.Drawings.BoxOutline.Visible = false
+            end
+        end
+
+        -- Box fill
+        if ESP.FillTransparency < 1 then
+            if not ESPObject.Drawings.BoxFill then
+                ESPObject.Drawings.BoxFill = Drawing.new('Square')
+                ESPObject.Drawings.BoxFill.Visible = false
+                ESPObject.Drawings.BoxFill.Color = ESP.FillColor
+                ESPObject.Drawings.BoxFill.Thickness = 1
+                ESPObject.Drawings.BoxFill.Filled = true
+            end
+
+            ESPObject.Drawings.BoxFill.Size = Size
+            ESPObject.Drawings.BoxFill.Position = Position
+            ESPObject.Drawings.BoxFill.Transparency = ESP.FillTransparency
+            ESPObject.Drawings.BoxFill.Visible = featureStates.ESPBoxes and isVisible
+        else
+            if ESPObject.Drawings.BoxFill then
+                ESPObject.Drawings.BoxFill.Visible = false
+            end
+        end
+    else
+        if ESPObject.Drawings.Box then
+            ESPObject.Drawings.Box.Visible = false
+        end
+        if ESPObject.Drawings.BoxOutline then
+            ESPObject.Drawings.BoxOutline.Visible = false
+        end
+        if ESPObject.Drawings.BoxFill then
+            ESPObject.Drawings.BoxFill.Visible = false
+        end
+    end
+
+    -- Name
+    if ESP.Names and featureStates.ESPNames then
+        if not ESPObject.Drawings.Name then
+            ESPObject.Drawings.Name = Drawing.new('Text')
+            ESPObject.Drawings.Name.Visible = false
+            ESPObject.Drawings.Name.Color = ESP.TextColor
+            ESPObject.Drawings.Name.Size = ESP.TextSize
+            ESPObject.Drawings.Name.Font = ESP.TextFont
+            ESPObject.Drawings.Name.Center = true
+        end
+
+        local NamePosition = Vector2.new(
+            RootPos.X,
+            RootPos.Y - ESP.TextOffset.Y
+        )
+        ESPObject.Drawings.Name.Text = player.Name
+        ESPObject.Drawings.Name.Position = NamePosition
+        ESPObject.Drawings.Name.Visible = featureStates.ESPNames and isVisible
+
+        -- Name outline
+        if ESP.TextOutline then
+            if not ESPObject.Drawings.NameOutline then
+                ESPObject.Drawings.NameOutline = Drawing.new('Text')
+                ESPObject.Drawings.NameOutline.Visible = false
+                ESPObject.Drawings.NameOutline.Color = ESP.TextOutlineColor
+                ESPObject.Drawings.NameOutline.Size = ESP.TextSize
+                ESPObject.Drawings.NameOutline.Font = ESP.TextFont
+                ESPObject.Drawings.NameOutline.Center = true
+            end
+
+            ESPObject.Drawings.NameOutline.Text = player.Name
+            ESPObject.Drawings.NameOutline.Position = NamePosition
+                + Vector2.new(1, 1)
+            ESPObject.Drawings.NameOutline.Visible = featureStates.ESPNames and isVisible
+        else
+            if ESPObject.Drawings.NameOutline then
+                ESPObject.Drawings.NameOutline.Visible = false
+            end
+        end
+    else
+        if ESPObject.Drawings.Name then
+            ESPObject.Drawings.Name.Visible = false
+        end
+        if ESPObject.Drawings.NameOutline then
+            ESPObject.Drawings.NameOutline.Visible = false
+        end
+    end
+
+    -- Health
+    if ESP.Health and featureStates.ESPHealth then
+        if not ESPObject.Drawings.Health then
+            ESPObject.Drawings.Health = Drawing.new('Text')
+            ESPObject.Drawings.Health.Visible = false
+            ESPObject.Drawings.Health.Color = ESP.TextColor
+            ESPObject.Drawings.Health.Size = ESP.HealthTextSize
+            ESPObject.Drawings.Health.Font = ESP.TextFont
+            ESPObject.Drawings.Health.Center = true
+        end
+
+        local HealthPosition = Vector2.new(
+            RootPos.X,
+            RootPos.Y - ESP.HealthTextOffset
+        )
+        ESPObject.Drawings.Health.Text = tostring(
+            math.floor(Humanoid.Health)
+        ) .. '/' .. tostring(math.floor(Humanoid.MaxHealth))
+        ESPObject.Drawings.Health.Position = HealthPosition
+        ESPObject.Drawings.Health.Visible = featureStates.ESPHealth and isVisible
+
+        -- Health outline
+        if ESP.TextOutline then
+            if not ESPObject.Drawings.HealthOutline then
+                ESPObject.Drawings.HealthOutline = Drawing.new('Text')
+                ESPObject.Drawings.HealthOutline.Visible = false
+                ESPObject.Drawings.HealthOutline.Color = ESP.TextOutlineColor
+                ESPObject.Drawings.HealthOutline.Size = ESP.HealthTextSize
+                ESPObject.Drawings.HealthOutline.Font = ESP.TextFont
+                ESPObject.Drawings.HealthOutline.Center = true
+            end
+
+            ESPObject.Drawings.HealthOutline.Text =
+                ESPObject.Drawings.Health.Text
+            ESPObject.Drawings.HealthOutline.Position = HealthPosition
+                + Vector2.new(1, 1)
+            ESPObject.Drawings.HealthOutline.Visible = featureStates.ESPHealth and isVisible
+        else
+            if ESPObject.Drawings.HealthOutline then
+                ESPObject.Drawings.HealthOutline.Visible = false
+            end
+        end
+    else
+        if ESPObject.Drawings.Health then
+            ESPObject.Drawings.Health.Visible = false
+        end
+        if ESPObject.Drawings.HealthOutline then
+            ESPObject.Drawings.HealthOutline.Visible = false
+        end
+    end
+
+    -- Distance
+    if ESP.Distance and featureStates.ESPDistance then
+        if not ESPObject.Drawings.Distance then
+            ESPObject.Drawings.Distance = Drawing.new('Text')
+            ESPObject.Drawings.Distance.Visible = false
+            ESPObject.Drawings.Distance.Color = ESP.TextColor
+            ESPObject.Drawings.Distance.Size = ESP.DistanceTextSize
+            ESPObject.Drawings.Distance.Font = ESP.TextFont
+            ESPObject.Drawings.Distance.Center = true
+        end
+
+        local DistancePosition = Vector2.new(
+            RootPos.X,
+            RootPos.Y - ESP.DistanceTextOffset
+        )
+        local Distance = math.floor(
+            (RootPart.Position - Camera.CFrame.Position).Magnitude
+        )
+        ESPObject.Drawings.Distance.Text = tostring(Distance) .. 'm'
+        ESPObject.Drawings.Distance.Position = DistancePosition
+        ESPObject.Drawings.Distance.Visible = featureStates.ESPDistance and isVisible
+
+        -- Distance outline
+        if ESP.TextOutline then
+            if not ESPObject.Drawings.DistanceOutline then
+                ESPObject.Drawings.DistanceOutline = Drawing.new('Text')
+                ESPObject.Drawings.DistanceOutline.Visible = false
+                ESPObject.Drawings.DistanceOutline.Color = ESP.TextOutlineColor
+                ESPObject.Drawings.DistanceOutline.Size =
+                    ESP.DistanceTextSize
+                ESPObject.Drawings.DistanceOutline.Font = ESP.TextFont
+                ESPObject.Drawings.DistanceOutline.Center = true
+            end
+
+            ESPObject.Drawings.DistanceOutline.Text =
+                ESPObject.Drawings.Distance.Text
+            ESPObject.Drawings.DistanceOutline.Position = DistancePosition
+                + Vector2.new(1, 1)
+            ESPObject.Drawings.DistanceOutline.Visible = featureStates.ESPDistance and isVisible
+        else
+            if ESPObject.Drawings.DistanceOutline then
+                ESPObject.Drawings.DistanceOutline.Visible = false
+            end
+        end
+    else
+        if ESPObject.Drawings.Distance then
+            ESPObject.Drawings.Distance.Visible = false
+        end
+        if ESPObject.Drawings.DistanceOutline then
+            ESPObject.Drawings.DistanceOutline.Visible = false
+        end
+    end
+
+    -- Tracer
+    if ESP.Tracers and featureStates.ESPTracers then
+        if not ESPObject.Drawings.Tracer then
+            ESPObject.Drawings.Tracer = Drawing.new('Line')
+            ESPObject.Drawings.Tracer.Visible = false
+            ESPObject.Drawings.Tracer.Color = ESP.TracerColor
+            ESPObject.Drawings.Tracer.Thickness = ESP.TracerThickness
+            ESPObject.Drawings.Tracer.Transparency = ESP.TracerTransparency
+        end
+
+        ESPObject.Drawings.Tracer.From = ESP.TracerFrom
+        ESPObject.Drawings.Tracer.To = Vector2.new(RootPos.X, RootPos.Y)
+        ESPObject.Drawings.Tracer.Visible = featureStates.ESPTracers and isVisible
+    else
+        if ESPObject.Drawings.Tracer then
+            ESPObject.Drawings.Tracer.Visible = false
+        end
+    end
+end
+
+    local RootPart = player.Character.HumanoidRootPart
+    local Head = player.Character:FindFirstChild('Head')
+    local Humanoid = player.Character.Humanoid
+
+    -- Calculate positions and visibility
+    local RootPos, RootVis = Camera:WorldToViewportPoint(RootPart.Position)
+    local HeadPos = Head and Camera:WorldToViewportPoint(Head.Position)
+        or RootPos
+
+        local function ClearESP()
+        for _, DrawingObject in pairs(ESPObject.Drawings) do
+            DrawingObject.Visible = false
+            DrawingObject:Remove()
+        end
+        ESPObject.Drawings = {}
+    end
+
+    local function CharacterAdded(Character)
+        if not Character then
+            return
+        end
+
+        local Humanoid = Character:WaitForChild('Humanoid')
+        local RootPart = Character:WaitForChild('HumanoidRootPart')
+
+        ESPObject.Connections.HumanoidDied = Humanoid.Died:Connect(function()
+            ClearESP()
+        end)
+
+        ESPObject.Connections.CharacterRemoving =
+            Character.AncestryChanged:Connect(
+                function(_, Parent)
+                    if Parent == nil then
+                        ClearESP()
+                    end
+                end
+            )
+
+        ESPObject.Connections.RenderStepped = RunService.RenderStepped:Connect(
+            UpdateESP
+        )
+    end
+
+    if player.Character then
+        CharacterAdded(player.Character)
+    end
+
+    ESPObject.Connections.CharacterAdded = player.CharacterAdded:Connect(
+        CharacterAdded
+    )
+    ESPObjects[player] = ESPObject
+end
+
+local function RemoveESP(player)
+    if not ESPObjects[player] then return end
+    
+    -- Clean up all drawings
+    for _, drawing in pairs(ESPObjects[player].Drawings) do
+        if drawing and drawing.Remove then
+            drawing.Visible = false
+            drawing:Remove()
+        end
+    end
+    
+    -- Disconnect all connections
+    for _, connection in pairs(ESPObjects[player].Connections) do
+        if connection then
+            connection:Disconnect()
+        end
+    end
+    
+    ESPObjects[player] = nil
+end
+
+local function UpdateAllESP()
+    for _, Player in pairs(Players:GetPlayers()) do
+        if Player ~= player and (not ESP.TeamCheck or Player.Team ~= player.Team) then
+            if featureStates.AdvancedESP then
+                RemoveESP(Player) -- First remove existing ESP
+                CreateESP(Player) -- Then recreate with new settings
+            else
+                RemoveESP(Player)
+            end
+        end
+    end
+end
+
 -- ESP Updater
 local ESPUpdater = RunService.Heartbeat:Connect(function()
     if featureStates.AdvancedESP then
@@ -63,842 +455,3 @@ local function ToggleAdvancedESP(state)
         end
     end
 end
-
--- Initialize Features
-local function initializeFeatures()
-    -- Create tabs and sections
-    for index, tabData in ipairs(tabs) do
-        local tabButton = createTab(tabData, index)
-        tabButton.Parent = TabsContainer
-
-        local section = createContentSection(tabData.Name)
-        section.Parent = ContentFrame
-        contentSections[tabData.Name] = section
-    end
-
-    -- Activate first tab
-    local firstTab = TabsContainer:FindFirstChild('General')
-    if firstTab then
-        firstTab.Highlight.Visible = true
-        contentSections.General.Visible = true
-        currentTab = firstTab
-        firstTab.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
-    end
-
-    -- General Tab
-    local generalContainer = contentSections.General.Container
-
-    -- NoClip Toggle
-    local noclipToggle, noclipKeybind = createToggle(
-        generalContainer,
-        'NoClip',
-        featureStates.NoClip,
-        function(state)
-            toggleNoclip(state)
-        end,
-        true,
-        'NoClip'
-    )
-
-    -- Visual Tab
-    local visualContainer = contentSections.Visual.Container
-
-    -- ESP Toggle
-    local espToggle, espKeybind = createToggle(
-        visualContainer,
-        'Player ESP',
-        featureStates.ESP,
-        function(state)
-            updateESP(state)
-        end,
-        true,
-        'ESP'
-    )
-
-    -- Chams Toggle
-    local chamsToggle, chamsKeybind = createToggle(
-        visualContainer,
-        'Team Chams',
-        featureStates.Chams,
-        function(state)
-            updateChams(state)
-        end,
-        true,
-        'Chams'
-    )
-
-    -- FullBright Toggle
-    local fullbrightToggle, fullbrightKeybind = createToggle(
-        visualContainer,
-        'Full Bright',
-        featureStates.FullBright,
-        function(state)
-            toggleFullBright(state)
-        end,
-        true,
-        'FullBright'
-    )
-
--- ESP Tab
-local espTabContainer = contentSections.ESP.Container
-
--- Remove automatic vertical layout if it exists
-local layout = espTabContainer:FindFirstChildOfClass("UIListLayout")
-if layout then
-    layout:Destroy()
-end
-
--- Store Y positions for each row
-local currentY = 10  -- Starting Y position
-
--- Advanced ESP Toggle (top of the list)
-local espMasterToggle, espMasterKeybind = createToggle(
-    espTabContainer,
-    'Advanced ESP',
-    featureStates.AdvancedESP,
-    function(state) 
-        featureStates.AdvancedESP = state 
-        ToggleAdvancedESP(state)
-    end,
-    true,
-    'AdvancedESP'
-)
-espMasterToggle.Position = UDim2.new(0, 0, 0, currentY)
-currentY = currentY + 40  -- Move down for next element
-
--- First row of toggles
-local boxesToggle, _ = createToggle(
-    espTabContainer,
-    'Boxes',
-    featureStates.ESPBoxes,
-    function(state)
-        featureStates.ESPBoxes = state
-        ESP.Boxes = state
-        UpdateAllESP()
-    end,
-    false,
-    'ESPBoxes'
-)
-boxesToggle.Position = UDim2.new(0, 0, 0, currentY)
-
-local distanceToggle, _ = createToggle(
-    espTabContainer,
-    'Distance',
-    featureStates.ESPDistance,
-    function(state)
-        featureStates.ESPDistance = state
-        ESP.Distance = state
-        UpdateAllESP()
-    end,
-    false,
-    'ESPDistance'
-)
-distanceToggle.Position = UDim2.new(0, 0, 0, currentY + 40)
-
-local healthToggle, _ = createToggle(
-    espTabContainer,
-    'Health',
-    featureStates.ESPHealth,
-    function(state)
-        featureStates.ESPHealth = state
-        ESP.Health = state
-        UpdateAllESP()
-    end,
-    false,
-    'ESPHealth'
-)
-healthToggle.Position = UDim2.new(0, 0, 0, currentY + 80)
-
-local namesToggle, _ = createToggle(
-    espTabContainer,
-    'Names',
-    featureStates.ESPNames,
-    function(state)
-        featureStates.ESPNames = state
-        ESP.Names = state
-        UpdateAllESP()
-    end,
-    false,
-    'ESPNames'
-)
-namesToggle.Position = UDim2.new(0, 0, 0, currentY + 120)
-
-local tracersToggle, _ = createToggle(
-    espTabContainer,
-    'Tracers',
-    featureStates.ESPTracers,
-    function(state)
-        featureStates.ESPTracers = state
-        ESP.Tracers = state
-        UpdateAllESP()
-    end,
-    false,
-    'ESPTracers'
-)
-tracersToggle.Position = UDim2.new(0, 0, 0, currentY + 160)
-
-local outlinesToggle, _ = createToggle(
-    espTabContainer,
-    'Outlines',
-    featureStates.ESPOutlines,
-    function(state)
-        featureStates.ESPOutlines = state
-        ESP.Outlines = state
-        UpdateAllESP()
-    end,
-    false,
-    'ESPOutlines'
-)
-outlinesToggle.Position = UDim2.new(0, 0, 0, currentY + 200)
-
--- Update currentY for color pickers
-currentY = currentY + 240
-
--- Color Pickers
-createColorPicker(espTabContainer, 'Box Color', ESP.Color, function(color)
-    ESP.Color = color
-end).Position = UDim2.new(0, 0, 0, currentY)
-
-createColorPicker(espTabContainer, 'Outline Color', ESP.OutlineColor, function(color)
-    ESP.OutlineColor = color
-end).Position = UDim2.new(0, 0, 0, currentY + 40)
-
-createColorPicker(espTabContainer, 'Fill Color', ESP.FillColor, function(color)
-    ESP.FillColor = color
-end).Position = UDim2.new(0, 0, 0, currentY + 80)
-
-createColorPicker(espTabContainer, 'Text Color', ESP.TextOutlineColor, function(color)
-    ESP.TextOutlineColor = color
-end).Position = UDim2.new(0, 0, 0, currentY + 120)
-
-createColorPicker(espTabContainer, 'Tracer Color', ESP.TracerColor, function(color)
-    ESP.TracerColor = color
-end).Position = UDim2.new(0, 0, 0, currentY + 160)
-
--- Update currentY for sliders
-currentY = currentY + 200
-
--- Sliders
-createSlider(
-    espTabContainer,
-    'Box Width',
-    1,
-    30,
-    ESP.BoxSize.X,
-    function(value)
-        ESP.BoxSize = Vector3.new(value, ESP.BoxSize.Y, 0)
-    end
-).Position = UDim2.new(0, 0, 0, currentY)
-
-createSlider(
-    espTabContainer,
-    'Box Height',
-    1,
-    30,
-    ESP.BoxSize.Y,
-    function(value)
-        ESP.BoxSize = Vector3.new(ESP.BoxSize.X, value, 0)
-    end
-).Position = UDim2.new(0, 0, 0, currentY + 40)
-
-createSlider(
-    espTabContainer,
-    'Box Shift',
-    -10,
-    10,
-    ESP.BoxShift.Y,
-    function(value)
-        ESP.BoxShift = CFrame.new(0, value, 0)
-    end
-).Position = UDim2.new(0, 0, 0, currentY + 80)
-
-createSlider(
-    espTabContainer,
-    'Name Size',
-    1,
-    100,
-    ESP.TextSize,
-    function(value)
-        ESP.TextSize = value
-        UpdateAllESP()
-    end
-).Position = UDim2.new(0, 0, 0, currentY + 120)
-
-createSlider(
-    espTabContainer,
-    'Health ESP Size',
-    1,
-    100,
-    ESP.HealthTextSize,
-    function(value)
-        ESP.HealthTextSize = value
-        UpdateAllESP()
-    end
-).Position = UDim2.new(0, 0, 0, currentY + 160)
-
-createSlider(
-    espTabContainer,
-    'Distance ESP Size',
-    1,
-    100,
-    ESP.DistanceTextSize,
-    function(value)
-        ESP.DistanceTextSize = value
-        UpdateAllESP()
-    end
-).Position = UDim2.new(0, 0, 0, currentY + 200)
-
-createSlider(
-    espTabContainer,
-    'Name Offset',
-    -300,
-    300,
-    ESP.TextOffset.Y,
-    function(value)
-        ESP.TextOffset = Vector2.new(0, value)
-    end
-).Position = UDim2.new(0, 0, 0, currentY + 240)
-
-createSlider(
-    espTabContainer,
-    'Health Offset',
-    -300,
-    300,
-    ESP.HealthTextOffset,
-    function(value)
-        ESP.HealthTextOffset = value
-    end
-).Position = UDim2.new(0, 0, 0, currentY + 280)
-
-createSlider(
-    espTabContainer,
-    'Distance Offset',
-    -300,
-    300,
-    ESP.DistanceTextOffset,
-    function(value)
-        ESP.DistanceTextOffset = value
-    end
-).Position = UDim2.new(0, 0, 0, currentY + 320)
-
-createSlider(
-    espTabContainer,
-    'Tracer Thickness',
-    1,
-    20,
-    ESP.TracerThickness,
-    function(value)
-        ESP.TracerThickness = value
-    end
-).Position = UDim2.new(0, 0, 0, currentY + 360)
-
-createSlider(
-    espTabContainer,
-    'Outline Size',
-    1,
-    20,
-    ESP.OutlineSize,
-    function(value)
-        ESP.OutlineSize = value
-    end
-).Position = UDim2.new(0, 0, 0, currentY + 400)
-
-createSlider(
-    espTabContainer,
-    'Fill Transparency',
-    0,
-    100,
-    ESP.FillTransparency * 101,
-    function(value)
-        ESP.FillTransparency = value / 101
-    end
-).Position = UDim2.new(0, 0, 0, currentY + 440)
-
-    -- Keybind Assignment
-    local function assignKeybind(keybindButton, featureName)
-        keybindButton.MouseButton1Click:Connect(function()
-            keybindButton.Text = '...'
-
-            local connection
-            connection = UserInputService.InputBegan:Connect(function(input)
-                if input.UserInputType == Enum.UserInputType.Keyboard then
-                    featureKeybinds[featureName] = input.KeyCode
-                    keybindButton.Text = input.KeyCode.Name
-                    connection:Disconnect()
-                    setupMenuToggle()
-                elseif
-                    input.UserInputType == Enum.UserInputType.MouseButton1
-                then
-                    featureKeybinds[featureName] = 'MB1'
-                    keybindButton.Text = 'MB1'
-                    connection:Disconnect()
-                    setupMenuToggle()
-                elseif
-                    input.UserInputType == Enum.UserInputType.MouseButton2
-                then
-                    featureKeybinds[featureName] = 'MB2'
-                    keybindButton.Text = 'MB2'
-                    connection:Disconnect()
-                    setupMenuToggle()
-                elseif
-                    input.UserInputType == Enum.UserInputType.MouseButton3
-                then
-                    featureKeybinds[featureName] = 'MB3'
-                    keybindButton.Text = 'MB3'
-                    connection:Disconnect()
-                    setupMenuToggle()
-                end
-            end)
-        end)
-    end
-
-    assignKeybind(noclipKeybind, 'NoClip')
-    assignKeybind(espKeybind, 'ESP')
-    assignKeybind(chamsKeybind, 'Chams')
-    assignKeybind(fullbrightKeybind, 'FullBright')
-    assignKeybind(espMasterKeybind, 'AdvancedESP')
-
-    noclipKeybind.Text = '...'
-    espKeybind.Text = '...'
-    chamsKeybind.Text = '...'
-    fullbrightKeybind.Text = '...'
-    espMasterKeybind.Text = '...'
-
-    -- Aim Tab
-    local aimContainer = contentSections.Aim.Container
-
-    -- Aimbot Toggle
-    local aimToggle, aimKeybind = createToggle(
-        aimContainer,
-        'Aimbot',
-        Aim.Enabled,
-        function(state)
-            Aim.Enabled = state
-            if
-                toggleComponents['Aimbot'] and toggleComponents['Aimbot'].slider
-            then
-                local slider = toggleComponents['Aimbot'].slider
-                local newPosition = state and UDim2.new(1, -25, 0, 1)
-                    or UDim2.new(0, 2, 0, 1)
-                slider.Position = newPosition
-                slider.BackgroundColor3 = state and Color3.fromRGB(255, 165, 0)
-                    or Color3.new(1, 1, 1)
-            end
-        end,
-        true,
-        'Aimbot'
-    )
-
-    -- Aimbot Keybind
-    aimKeybind.MouseButton1Click:Connect(function()
-        aimKeybind.Text = '...'
-        local connection
-        connection = UserInputService.InputBegan:Connect(function(input)
-            if input.UserInputType == Enum.UserInputType.Keyboard then
-                Aim.CurrentKey = input.KeyCode.Name
-                Aim.AimKey = input.KeyCode
-                aimKeybind.Text = input.KeyCode.Name
-                connection:Disconnect()
-            elseif input.UserInputType == Enum.UserInputType.MouseButton1 then
-                Aim.CurrentKey = 'MB1'
-                Aim.AimKey = input.UserInputType
-                aimKeybind.Text = 'MB1'
-                connection:Disconnect()
-            elseif input.UserInputType == Enum.UserInputType.MouseButton2 then
-                Aim.CurrentKey = 'MB2'
-                Aim.AimKey = input.UserInputType
-                aimKeybind.Text = 'MB2'
-                connection:Disconnect()
-            elseif input.UserInputType == Enum.UserInputType.MouseButton3 then
-                Aim.CurrentKey = 'MB3'
-                Aim.AimKey = input.UserInputType
-                aimKeybind.Text = 'MB3'
-                connection:Disconnect()
-            end
-        end)
-    end)
-    aimKeybind.Text = Aim.CurrentKey
-
-    -- Team Check
-    createToggle(aimContainer, 'Team Check', featureStates.TeamCheck, function(state)
-        featureStates.TeamCheck = state
-        Aim.TeamCheck = state
-    end, false, 'TeamCheck')
-
-    -- Visibility Check
-    createToggle(
-        aimContainer,
-        'Visibility Check',
-        featureStates.VisibilityCheck,
-        function(state)
-            featureStates.VisibilityCheck = state
-            Aim.VisibilityCheck = state
-        end,
-        false,
-        'VisibilityCheck'
-    )
-
-    -- Show FOV Toggle
-    createToggle(
-        aimContainer,
-        'Show FOV',
-        featureStates.ShowFOV,
-        function(state)
-            featureStates.ShowFOV = state
-            Aim.ShowFOV = state
-            FOVCircle.Visible = state
-        end,
-        false,
-        'ShowFOV'
-    )
-
-    -- Aim Part Selection
-    local partFrame = Instance.new('Frame')
-    partFrame.Size = UDim2.new(1, -20, 0, 40)
-    partFrame.BackgroundTransparency = 1
-    partFrame.Parent = aimContainer
-
-    local headButton = Instance.new('TextButton')
-    headButton.Size = UDim2.new(0.45, -5, 0, 30)
-    headButton.Position = UDim2.new(0.025, 0, 0, 5)
-    headButton.Text = 'Head'
-    headButton.TextSize = 14
-    headButton.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
-    headButton.TextColor3 = Color3.new(1, 1, 1)
-    headButton.Font = Enum.Font.Gotham
-    headButton.Parent = partFrame
-
-    local headHighlight = Instance.new('Frame')
-    headHighlight.Name = 'Highlight'
-    headHighlight.Size = UDim2.new(0, 5, 1, 0)
-    headHighlight.Position = UDim2.new(1, -165, 0, 0)
-    headHighlight.AnchorPoint = Vector2.new(1, 0)
-    headHighlight.BackgroundColor3 = Aim.AimPart == 'Head'
-            and Color3.fromRGB(255, 165, 0)
-        or Color3.fromRGB(60, 60, 60)
-    headHighlight.BorderSizePixel = 0
-    headHighlight.ZIndex = 2
-    headHighlight.Parent = headButton
-
-    local torsoButton = Instance.new('TextButton')
-    torsoButton.Size = UDim2.new(0.45, -5, 0, 30)
-    torsoButton.Position = UDim2.new(0.525, 0, 0, 5)
-    torsoButton.Text = 'Torso'
-    torsoButton.TextSize = 14
-    torsoButton.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
-    torsoButton.TextColor3 = Color3.new(1, 1, 1)
-    torsoButton.Font = Enum.Font.Gotham
-    torsoButton.Parent = partFrame
-
-    local torsoHighlight = Instance.new('Frame')
-    torsoHighlight.Name = 'Highlight'
-    torsoHighlight.Size = UDim2.new(0, 5, 1, 0)
-    torsoHighlight.Position = UDim2.new(1, -165, 0, 0)
-    torsoHighlight.AnchorPoint = Vector2.new(1, 0)
-    torsoHighlight.BackgroundColor3 = Aim.AimPart == 'Torso'
-            and Color3.fromRGB(255, 165, 0)
-        or Color3.fromRGB(60, 60, 60)
-    torsoHighlight.BorderSizePixel = 0
-    torsoHighlight.ZIndex = 2
-    torsoHighlight.Parent = torsoButton
-
-    local buttonCorner = Instance.new('UICorner')
-    buttonCorner.CornerRadius = UDim.new(0, 4)
-    buttonCorner.Parent = headButton
-
-    local buttonCorner2 = Instance.new('UICorner')
-    buttonCorner2.CornerRadius = UDim.new(0, 4)
-    buttonCorner2.Parent = torsoButton
-
-    headButton.MouseButton1Click:Connect(function()
-        Aim.AimPart = 'Head'
-        headHighlight.BackgroundColor3 = Color3.fromRGB(255, 165, 0)
-        torsoHighlight.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
-    end)
-
-    torsoButton.MouseButton1Click:Connect(function()
-        Aim.AimPart = 'Torso'
-        torsoHighlight.BackgroundColor3 = Color3.fromRGB(255, 165, 0)
-        headHighlight.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
-    end)
-
-    -- FOV Controls
-    createSlider(
-        aimContainer,
-        'FOV Radius',
-        10,
-        500,
-        Aim.FOV,
-        function(value)
-            Aim.FOV = value
-            FOVCircle.Radius = value
-        end
-    )
-
-    -- Settings Tab
-    local settingsContainer = contentSections.Settings.Container
-
-    -- Menu Toggle Keybind
-    local menuToggleFrame = Instance.new('Frame')
-    menuToggleFrame.Size = UDim2.new(1, -20, 0, 30)
-    menuToggleFrame.BackgroundTransparency = 1
-    menuToggleFrame.Parent = settingsContainer
-
-    local menuToggleLabel = Instance.new('TextLabel')
-    menuToggleLabel.Text = 'Menu Toggle Key'
-    menuToggleLabel.Font = Enum.Font.Gotham
-    menuToggleLabel.TextColor3 = Color3.new(1, 1, 1)
-    menuToggleLabel.TextSize = 14
-    menuToggleLabel.Size = UDim2.new(0.6, 0, 1, 0)
-    menuToggleLabel.TextXAlignment = Enum.TextXAlignment.Left
-    menuToggleLabel.BackgroundTransparency = 1
-    menuToggleLabel.Parent = menuToggleFrame
-
-    local menuToggleButton = Instance.new('TextButton')
-    menuToggleButton.Size = UDim2.new(0, 100, 0, 25)
-    menuToggleButton.Position = UDim2.new(0.75, 0, 0, 2.5)
-    menuToggleButton.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
-    menuToggleButton.Text = featureKeybinds.Menu.Name
-    menuToggleButton.TextColor3 = Color3.new(1, 1, 1)
-    menuToggleButton.TextSize = 12
-    menuToggleButton.Font = Enum.Font.Gotham
-    menuToggleButton.Parent = menuToggleFrame
-
-    local menuToggleCorner = Instance.new('UICorner')
-    menuToggleCorner.CornerRadius = UDim.new(0, 4)
-    menuToggleCorner.Parent = menuToggleButton
-
-    menuToggleButton.MouseButton1Click:Connect(function()
-        menuToggleButton.Text = '...'
-        local connection
-        connection = UserInputService.InputBegan:Connect(function(input)
-            if input.UserInputType == Enum.UserInputType.Keyboard then
-                featureKeybinds.Menu = input.KeyCode
-                menuToggleButton.Text = input.KeyCode.Name
-                connection:Disconnect()
-                setupMenuToggle()
-            end
-        end)
-    end)
-end
-
--- Player Handling
-local function handlePlayer(player)
-    player.CharacterAdded:Connect(function()
-        if featureStates.ESP then
-            createESP(player)
-        end
-        if featureStates.Chams then
-            createChams(player)
-        end
-        if featureStates.AdvancedESP then
-            CreateESP(player)
-        end
-    end)
-
-    if player.Character then
-        if featureStates.ESP then
-            createESP(player)
-        end
-        if featureStates.Chams then
-            createChams(player)
-        end
-        if featureStates.AdvancedESP then
-            CreateESP(player)
-        end
-    end
-end
-
-Players.PlayerAdded:Connect(function(player)
-    handlePlayer(player)
-    if featureStates.AdvancedESP then
-        CreateESP(player)
-    end
-end)
-
-Players.PlayerRemoving:Connect(function(player)
-    if activeESP[player] then
-        activeESP[player]:Destroy()
-    end
-    if activeHighlights[player] then
-        activeHighlights[player]:Destroy()
-    end
-    if espConnections[player] then
-        espConnections[player]:Disconnect()
-    end
-    if chamsConnections[player] then
-        chamsConnections[player]:Disconnect()
-    end
-    RemoveESP(player)
-end)
-
--- Initialize ESP for all existing players immediately
-for _, player in ipairs(Players:GetPlayers()) do
-    handlePlayer(player)
-    if featureStates.AdvancedESP then
-        CreateESP(player)
-    end
-end
-
--- Get closest player for aimbot
-local function GetClosestPlayer()
-    local closestPlayer = nil
-    local shortestDistance = Aim.FOV
-    
-    for _, v in pairs(Players:GetPlayers()) do
-        if v ~= player and v.Character and v.Character:FindFirstChild("HumanoidRootPart") then
-            -- Team check
-            if Aim.TeamCheck and v.Team and player.Team and v.Team == player.Team then 
-                continue 
-            end
-            
-            local targetPart = v.Character:FindFirstChild(Aim.AimPart)
-            if not targetPart then continue end
-            
-            local screenPos = Camera:WorldToScreenPoint(targetPart.Position)
-            if screenPos.Z > 0 then
-                local mousePos = UserInputService:GetMouseLocation()
-                local distance = (Vector2.new(screenPos.X, screenPos.Y) - mousePos).Magnitude
-                
-                -- Only proceed if distance is within FOV
-                if distance < shortestDistance then
-                    -- Visibility check
-                    if Aim.VisibilityCheck then
-                        -- Cast a ray from camera to target
-                        local raycastParams = RaycastParams.new()
-                        raycastParams.FilterDescendantsInstances = {player.Character, v.Character}
-                        raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
-                        
-                        local rayOrigin = Camera.CFrame.Position
-                        local rayDirection = (targetPart.Position - rayOrigin).Unit * (rayOrigin - targetPart.Position).Magnitude
-                        local raycastResult = workspace:Raycast(rayOrigin, rayDirection, raycastParams)
-                        
-                        -- If ray hits nothing or hits the target player, then visible
-                        if not raycastResult or raycastResult.Instance:IsDescendantOf(v.Character) then
-                            closestPlayer = v
-                            shortestDistance = distance
-                        end
-                    else
-                        -- No visibility check needed
-                        closestPlayer = v
-                        shortestDistance = distance
-                    end
-                end
-            end
-        end
-    end
-    return closestPlayer
-end
-
--- Aim Loop
-RunService.RenderStepped:Connect(function()
-    FOVCircle.Position = UserInputService:GetMouseLocation()
-    FOVCircle.Radius = Aim.FOV
-    FOVCircle.Visible = Aim.ShowFOV and Aim.Enabled
-    
-    local keyPressed = false
-    if Aim.AimKey then
-        -- Handle mouse buttons first
-        if Aim.CurrentKey == "MB1" then
-            keyPressed = UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1)
-        elseif Aim.CurrentKey == "MB2" then
-            keyPressed = UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2)
-        elseif Aim.CurrentKey == "MB3" then
-            keyPressed = UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton3)
-        else
-            -- Handle keyboard keys
-            keyPressed = UserInputService:IsKeyDown(Aim.AimKey)
-        end
-    end
-    
-    if Aim.Enabled and keyPressed then
-        local target = GetClosestPlayer()
-        if target and target.Character then
-            local targetPart = target.Character:FindFirstChild(Aim.AimPart)
-            if targetPart then
-                Camera.CFrame = CFrame.new(Camera.CFrame.Position, targetPart.Position)
-            end
-        end
-    end
-end)
-
--- Setup menu toggle key
-setupMenuToggle()
-
--- Initialize features after GUI creation
-initializeFeatures()
-
--- Initialize FullBright to off
-_G.FullBrightEnabled = false
-toggleFullBright(false)
-
--- Menu persistence through respawns
-player.CharacterAdded:Connect(function()
-    task.wait(1)
-    if not player.PlayerGui:FindFirstChild('KIBHook') then
-        ScreenGui:Clone().Parent = player.PlayerGui
-    end
-end)
-
--- Show injection notification
-local function showInjectionNotification()
-    local notification = Instance.new('ScreenGui')
-    notification.Name = 'InjectionNotification'
-    notification.Parent = gui
-    notification.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-
-    local mainFrame = Instance.new('Frame')
-    mainFrame.Size = UDim2.new(0, 400, 0, 120)
-    mainFrame.Position = UDim2.new(0.5, -200, 0.1, 0)
-    mainFrame.BackgroundColor3 = Color3.new(0, 0, 0)
-    mainFrame.BackgroundTransparency = 0.5
-    mainFrame.BorderSizePixel = 0
-    mainFrame.Parent = notification
-
-    local corner = Instance.new('UICorner')
-    corner.CornerRadius = UDim.new(0, 8)
-    corner.Parent = mainFrame
-
-    local title = Instance.new('TextLabel')
-    title.Text = 'IB Hook'
-    title.Font = Enum.Font.GothamBold
-    title.TextSize = 18
-    title.TextColor3 = Color3.fromRGB(255, 255, 255)
-    title.Size = UDim2.new(1, 0, 0.5, 0)
-    title.Position = UDim2.new(0, 0, 0, 5)
-    title.BackgroundTransparency = 1
-    title.Parent = mainFrame
-
-    local title = Instance.new('TextLabel')
-    title.Text = 'K'
-    title.Font = Enum.Font.GothamBold
-    title.TextSize = 18
-    title.TextColor3 = Color3.fromRGB(255, 165, 0)
-    title.Size = UDim2.new(1, 0, 0.5, 0)
-    title.Position = UDim2.new(0, -38, 0, 5)
-    title.BackgroundTransparency = 1
-    title.Parent = mainFrame
-
-    local hint = Instance.new('TextLabel')
-    hint.Text = 'Press ' .. featureKeybinds.Menu.Name .. ' to open menu'
-    hint.Font = Enum.Font.Gotham
-    hint.TextSize = 14
-    hint.TextColor3 = Color3.fromRGB(255, 255, 255)
-    hint.Size = UDim2.new(1, 0, 0.5, 0)
-    hint.Position = UDim2.new(0, -8, 0.5, -5)
-    hint.BackgroundTransparency = 1
-    hint.Parent = mainFrame
-
-    delay(6, function()
-        game
-            :GetService('TweenService')
-            :Create(mainFrame, TweenInfo.new(0.5), {
-                BackgroundTransparency = 1,
-            })
-            :Play()
-        wait(0.5)
-        notification:Destroy()
-    end)
-end
-
-showInjectionNotification()
