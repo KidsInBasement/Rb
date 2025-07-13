@@ -902,15 +902,16 @@ RunService.RenderStepped:Connect(function()
     
     local keyPressed = false
     if Aim.AimKey then
-        -- Handle mouse buttons directly using Enum.UserInputType
+        -- We now directly compare Aim.AimKey with the expected Enum values.
+        -- Use UserInputService:IsMouseButtonPressed for mouse buttons.
         if Aim.AimKey == Enum.UserInputType.MouseButton1 then
             keyPressed = UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1)
         elseif Aim.AimKey == Enum.UserInputType.MouseButton2 then
             keyPressed = UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2)
         elseif Aim.AimKey == Enum.UserInputType.MouseButton3 then
             keyPressed = UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton3)
-        else
-            -- Handle keyboard keys (Aim.AimKey would be an Enum.KeyCode)
+        -- For keyboard keys, Aim.AimKey will be an Enum.KeyCode, so IsKeyDown works.
+        elseif typeof(Aim.AimKey) == "Enum.KeyCode" then
             keyPressed = UserInputService:IsKeyDown(Aim.AimKey)
         end
     end
