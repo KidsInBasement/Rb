@@ -1,4 +1,6 @@
 -- KIB Hook - Core Logic (Loaded from GitHub)
+-- This script contains the feature implementations and relies on GUI elements and settings
+-- exposed globally by the main loader script.
 
 local Players = game:GetService('Players')
 local UserInputService = game:GetService('UserInputService')
@@ -9,6 +11,7 @@ local player = Players.LocalPlayer
 local gui = player:WaitForChild('PlayerGui')
 local Camera = workspace.CurrentCamera
 
+-- Access global variables set by the main script
 local featureStates = _G.featureStates
 local featureKeybinds = _G.featureKeybinds
 local toggleComponents = _G.toggleComponents
@@ -16,15 +19,17 @@ local ESP = _G.ESP
 local Aim = _G.Aim
 local FOVCircle = _G.FOVCircle
 
+-- Tracking (These can be local to this script)
 local activeESP = {}
 local activeHighlights = {}
 local noclipConnection
 local espConnections = {}
 local chamsConnections = {}
-local ESPObjects = {}
-local ESPUpdater
+local ESPObjects = {} -- For advanced ESP
+local ESPUpdater -- For advanced ESP
 
-_G.toggleNoclip = function(state)
+-- Noclip Function
+_G.toggleNoclip = function(state) -- Expose globally
     featureStates.NoClip = state
     if state then
         noclipConnection = RunService.Stepped:Connect(function()
@@ -44,7 +49,8 @@ _G.toggleNoclip = function(state)
     end
 end
 
-if not _G.FullBrightExecuted then
+-- FullBright Functions
+if not _G.FullBrightExecuted then -- Ensure these are only set up once
     _G.FullBrightEnabled = false
     _G.NormalLightingSettings = {
         Brightness = game:GetService('Lighting').Brightness,
@@ -119,7 +125,7 @@ if not _G.FullBrightExecuted then
     _G.FullBrightExecuted = true
 end
 
-_G.toggleFullBright = function(state)
+_G.toggleFullBright = function(state) -- Expose globally
     featureStates.FullBright = state
     _G.FullBrightEnabled = state
 
@@ -141,19 +147,20 @@ _G.toggleFullBright = function(state)
     end
 end
 
+-- ESP Functions
 local function getTeamColor(player)
     if not player.Team then
-        return Color3.fromRGB(255, 255, 0)
+        return Color3.fromRGB(255, 255, 0) -- NO_TEAM_COLOR
     end
     local baseColor = player.Team.TeamColor.Color
     return Color3.new(
-        math.min(baseColor.R * (1 + 0.3), 1),
+        math.min(baseColor.R * (1 + 0.3), 1), -- COLOR_BOOST
         math.min(baseColor.G * (1 + 0.3), 1),
         math.min(baseColor.B * (1 + 0.3), 1)
     )
 end
 
-local function createLegacyESP(player)
+local function createLegacyESP(player) -- Renamed to avoid conflict with AdvancedESP's CreateESP
     if activeESP[player] then
         activeESP[player]:Destroy()
     end
@@ -191,7 +198,7 @@ local function createLegacyESP(player)
     espText.TextSize = 18
     espText.Font = Enum.Font.GothamBold
     espText.TextStrokeTransparency = 0
-    espText.TextStrokeColor3 = Color3.new(0, 0, 0)
+    espText.TextStrokeColor3 = Color3.new(0, 0, 0) -- TEXT_STROKE_COLOR
     espText.Parent = espGui
 
     activeESP[player] = espGui
@@ -222,7 +229,7 @@ local function createLegacyESP(player)
     end)
 end
 
-_G.updateESP = function(state)
+_G.updateESP = function(state) -- Expose globally
     featureStates.ESP = state
     if not state then
         for player, gui in pairs(activeESP) do
@@ -234,11 +241,13 @@ _G.updateESP = function(state)
         end
         espConnections = {}
     else
+        -- Create ESP for all existing players
         for _, player in ipairs(Players:GetPlayers()) do
             if player ~= Players.LocalPlayer then
                 if player.Character then
                     createLegacyESP(player)
                 end
+                -- Also set up connection for when they respawn
                 if not espConnections[player] then
                     espConnections[player] = player.CharacterAdded:Connect(function(character)
                         if featureStates.ESP then
@@ -251,6 +260,7 @@ _G.updateESP = function(state)
     end
 end
 
+-- Chams Functions
 local function createChams(player)
     if activeHighlights[player] then
         activeHighlights[player]:Destroy()
@@ -296,7 +306,7 @@ local function createChams(player)
     end)
 end
 
-_G.updateChams = function(state)
+_G.updateChams = function(state) -- Expose globally
     featureStates.Chams = state
     if not state then
         for player, highlight in pairs(activeHighlights) do
@@ -313,19 +323,21 @@ _G.updateChams = function(state)
                 if player.Character then
                     createChams(player)
                 end
+                -- Also set up connection for when they respawn
                 if not chamsConnections[player] then
                     chamsConnections[player] = player.CharacterAdded:Connect(function(character)
                         if featureStates.Chams then
                             createChams(player)
                         end
-                    })
+                    end)
                 end
             end
         end
     end
 end
 
-local function CreateAdvancedESP(player)
+-- Advanced ESP Functions
+local function CreateAdvancedESP(player) -- Renamed function to avoid conflict
     if ESPObjects[player] then
         return
     end
@@ -349,12 +361,15 @@ local function CreateAdvancedESP(player)
         local Head = player.Character:FindFirstChild('Head')
         local Humanoid = player.Character.Humanoid
 
+        -- Calculate positions and visibility
         local RootPos, RootVis = Camera:WorldToViewportPoint(RootPart.Position)
         local HeadPos = Head and Camera:WorldToViewportPoint(Head.Position)
             or RootPos
 
+        -- Only show ESP if player is visible on screen
         local isVisible = RootVis
         if not isVisible then
+            -- Hide all ESP elements if player is not visible
             if ESPObject.Drawings.Box then ESPObject.Drawings.Box.Visible = false end
             if ESPObject.Drawings.BoxOutline then ESPObject.Drawings.BoxOutline.Visible = false end
             if ESPObject.Drawings.BoxFill then ESPObject.Drawings.BoxFill.Visible = false end
@@ -368,11 +383,14 @@ local function CreateAdvancedESP(player)
             return
         end
 
+        -- Box
         if ESP.Boxes and featureStates.ESPBoxes then
+            -- Get camera vectors for proper facing
             local cameraCFrame = Camera.CFrame
             local rightVector = cameraCFrame.RightVector
             local upVector = cameraCFrame.UpVector
             
+            -- Calculate box corners facing the camera (using fixed size)
             local centerPos = (RootPart.CFrame * ESP.BoxShift).Position
             local topRight = Camera:WorldToViewportPoint(centerPos + (rightVector * ESP.BoxSize.X/2) + (upVector * ESP.BoxSize.Y/2))
             local bottomLeft = Camera:WorldToViewportPoint(centerPos - (rightVector * ESP.BoxSize.X/2) - (upVector * ESP.BoxSize.Y/2))
@@ -398,6 +416,7 @@ local function CreateAdvancedESP(player)
             ESPObject.Drawings.Box.Position = Position
             ESPObject.Drawings.Box.Visible = featureStates.ESPBoxes and isVisible
 
+            -- Box outline
             if ESP.Outlines and featureStates.ESPOutlines then
                 if not ESPObject.Drawings.BoxOutline then
                     ESPObject.Drawings.BoxOutline = Drawing.new('Square')
@@ -418,6 +437,7 @@ local function CreateAdvancedESP(player)
                 end
             end
 
+            -- Box fill
             if ESP.FillTransparency < 1 then
                 if not ESPObject.Drawings.BoxFill then
                     ESPObject.Drawings.BoxFill = Drawing.new('Square')
@@ -448,6 +468,7 @@ local function CreateAdvancedESP(player)
             end
         end
 
+        -- Name
         if ESP.Names and featureStates.ESPNames then
             if not ESPObject.Drawings.Name then
                 ESPObject.Drawings.Name = Drawing.new('Text')
@@ -466,6 +487,7 @@ local function CreateAdvancedESP(player)
             ESPObject.Drawings.Name.Position = NamePosition
             ESPObject.Drawings.Name.Visible = featureStates.ESPNames and isVisible
 
+            -- Name outline
             if ESP.TextOutline then
                 if not ESPObject.Drawings.NameOutline then
                     ESPObject.Drawings.NameOutline = Drawing.new('Text')
@@ -476,8 +498,7 @@ local function CreateAdvancedESP(player)
                     ESPObject.Drawings.NameOutline.Center = true
                 end
 
-                ESPObject.Drawings.NameOutline.Text =
-                    ESPObject.Drawings.Name.Text
+                ESPObject.Drawings.NameOutline.Text = player.Name
                 ESPObject.Drawings.NameOutline.Position = NamePosition
                     + Vector2.new(1, 1)
                 ESPObject.Drawings.NameOutline.Visible = featureStates.ESPNames and isVisible
@@ -495,6 +516,7 @@ local function CreateAdvancedESP(player)
             end
         end
 
+        -- Health
         if ESP.Health and featureStates.ESPHealth then
             if not ESPObject.Drawings.Health then
                 ESPObject.Drawings.Health = Drawing.new('Text')
@@ -515,6 +537,7 @@ local function CreateAdvancedESP(player)
             ESPObject.Drawings.Health.Position = HealthPosition
             ESPObject.Drawings.Health.Visible = featureStates.ESPHealth and isVisible
 
+            -- Health outline
             if ESP.TextOutline then
                 if not ESPObject.Drawings.HealthOutline then
                     ESPObject.Drawings.HealthOutline = Drawing.new('Text')
@@ -544,6 +567,7 @@ local function CreateAdvancedESP(player)
             end
         end
 
+        -- Distance
         if ESP.Distance and featureStates.ESPDistance then
             if not ESPObject.Drawings.Distance then
                 ESPObject.Drawings.Distance = Drawing.new('Text')
@@ -565,6 +589,7 @@ local function CreateAdvancedESP(player)
             ESPObject.Drawings.Distance.Position = DistancePosition
             ESPObject.Drawings.Distance.Visible = featureStates.ESPDistance and isVisible
 
+            -- Distance outline
             if ESP.TextOutline then
                 if not ESPObject.Drawings.DistanceOutline then
                     ESPObject.Drawings.DistanceOutline = Drawing.new('Text')
@@ -595,6 +620,7 @@ local function CreateAdvancedESP(player)
             end
         end
 
+        -- Tracer
         if ESP.Tracers and featureStates.ESPTracers then
             if not ESPObject.Drawings.Tracer then
                 ESPObject.Drawings.Tracer = Drawing.new('Line')
@@ -660,9 +686,10 @@ local function CreateAdvancedESP(player)
     ESPObjects[player] = ESPObject
 end
 
-local function RemoveAdvancedESP(player)
+local function RemoveAdvancedESP(player) -- Renamed function to avoid conflict
     if not ESPObjects[player] then return end
     
+    -- Clean up all drawings
     for _, drawing in pairs(ESPObjects[player].Drawings) do
         if drawing and drawing.Remove then
             drawing.Visible = false
@@ -670,6 +697,7 @@ local function RemoveAdvancedESP(player)
         end
     end
     
+    -- Disconnect all connections
     for _, connection in pairs(ESPObjects[player].Connections) do
         if connection then
             connection:Disconnect()
@@ -679,12 +707,12 @@ local function RemoveAdvancedESP(player)
     ESPObjects[player] = nil
 end
 
-_G.UpdateAllESP = function()
+_G.UpdateAllESP = function() -- Expose globally
     for _, Player in pairs(Players:GetPlayers()) do
         if Player ~= player and (not ESP.TeamCheck or Player.Team ~= player.Team) then
             if featureStates.AdvancedESP then
-                RemoveAdvancedESP(Player)
-                CreateAdvancedESP(Player)
+                RemoveAdvancedESP(Player) -- First remove existing ESP
+                CreateAdvancedESP(Player) -- Then recreate with new settings
             else
                 RemoveAdvancedESP(Player)
             end
@@ -692,10 +720,12 @@ _G.UpdateAllESP = function()
     end
 end
 
+-- ESP Updater (runs in a loop to update drawing properties)
 ESPUpdater = RunService.Heartbeat:Connect(function()
     if featureStates.AdvancedESP then
         for player, espObject in pairs(ESPObjects) do
             if player and player.Character then
+                -- Update all properties in real-time for all players
                 if espObject.Drawings.Box then
                     espObject.Drawings.Box.Color = ESP.Color
                 end
@@ -740,9 +770,10 @@ ESPUpdater = RunService.Heartbeat:Connect(function()
     end
 end)
 
-_G.ToggleAdvancedESP = function(state)
+_G.ToggleAdvancedESP = function(state) -- Expose globally
     featureStates.AdvancedESP = state
     if state then
+        -- Initialize ESP for all existing players when first enabled
         for _, p in ipairs(Players:GetPlayers()) do
             if p ~= Players.LocalPlayer and p.Character then
                 CreateAdvancedESP(p)
@@ -755,6 +786,7 @@ _G.ToggleAdvancedESP = function(state)
     end
 end
 
+-- Player Handling (logic for player added/removed)
 local function handlePlayerLogic(p)
     p.CharacterAdded:Connect(function()
         if featureStates.ESP then
@@ -804,6 +836,7 @@ Players.PlayerRemoving:Connect(function(p)
     RemoveAdvancedESP(p)
 end)
 
+-- Initialize features for all existing players immediately
 for _, p in ipairs(Players:GetPlayers()) do
     handlePlayerLogic(p)
     if featureStates.AdvancedESP then
@@ -811,12 +844,14 @@ for _, p in ipairs(Players:GetPlayers()) do
     end
 end
 
+-- Get closest player for aimbot
 local function GetClosestPlayer()
     local closestPlayer = nil
     local shortestDistance = Aim.FOV
     
     for _, v in pairs(Players:GetPlayers()) do
         if v ~= player and v.Character and v.Character:FindFirstChild("HumanoidRootPart") then
+            -- Team check
             if Aim.TeamCheck and v.Team and player.Team and v.Team == player.Team then 
                 continue 
             end
@@ -829,8 +864,11 @@ local function GetClosestPlayer()
                 local mousePos = UserInputService:GetMouseLocation()
                 local distance = (Vector2.new(screenPos.X, screenPos.Y) - mousePos).Magnitude
                 
+                -- Only proceed if distance is within FOV
                 if distance < shortestDistance then
+                    -- Visibility check
                     if Aim.VisibilityCheck then
+                        -- Cast a ray from camera to target
                         local raycastParams = RaycastParams.new()
                         raycastParams.FilterDescendantsInstances = {player.Character, v.Character}
                         raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
@@ -839,11 +877,13 @@ local function GetClosestPlayer()
                         local rayDirection = (targetPart.Position - rayOrigin).Unit * (rayOrigin - targetPart.Position).Magnitude
                         local raycastResult = workspace:Raycast(rayOrigin, rayDirection, raycastParams)
                         
+                        -- If ray hits nothing or hits the target player, then visible
                         if not raycastResult or raycastResult.Instance:IsDescendantOf(v.Character) then
                             closestPlayer = v
                             shortestDistance = distance
                         end
                     else
+                        -- No visibility check needed
                         closestPlayer = v
                         shortestDistance = distance
                     end
@@ -854,6 +894,7 @@ local function GetClosestPlayer()
     return closestPlayer
 end
 
+-- Aim Loop
 RunService.RenderStepped:Connect(function()
     FOVCircle.Position = UserInputService:GetMouseLocation()
     FOVCircle.Radius = Aim.FOV
@@ -861,6 +902,7 @@ RunService.RenderStepped:Connect(function()
     
     local keyPressed = false
     if Aim.AimKey then
+        -- Handle mouse buttons first
         if Aim.CurrentKey == "MB1" then
             keyPressed = UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1)
         elseif Aim.CurrentKey == "MB2" then
@@ -868,6 +910,7 @@ RunService.RenderStepped:Connect(function()
         elseif Aim.CurrentKey == "MB3" then
             keyPressed = UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton3)
         else
+            -- Handle keyboard keys
             keyPressed = UserInputService:IsKeyDown(Aim.AimKey)
         end
     end
